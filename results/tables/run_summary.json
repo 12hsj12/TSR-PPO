@@ -3,5 +3,5 @@
   "seed": 42,
   "jobs": 60,
   "episodes": 35,
-  "training_runtime_sec": 25.86629829999947
+  "training_runtime_sec": 28.42544160000034
 }
