@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+results/models/*.npz
+results/models/*.pt
+results/models/*.pth
+results/models/*.zip
+results/tmp/
+*.log
+.DS_Store
+Thumbs.db
