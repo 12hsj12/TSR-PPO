@@ -5,7 +5,7 @@ __pycache__/
 .ruff_cache/
 .venv/
 venv/
-env/
+/env/
 results/models/*.npz
 results/models/*.pt
 results/models/*.pth
