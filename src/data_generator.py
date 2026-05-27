@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from config import DATA_DIR, PROCESS_TYPES, GeneratorConfig
+from utils.io import write_json
 
 
 def process_from_line(name: str) -> str:
@@ -131,8 +132,7 @@ def generate_instance(cfg: GeneratorConfig) -> dict:
 
 
 def save_instance(instance: dict, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(instance, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_json(instance, path)
 
 
 def main() -> None:

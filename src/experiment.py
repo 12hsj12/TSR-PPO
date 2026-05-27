@@ -12,6 +12,7 @@ from config import DATA_DIR, RESULTS_DIR, ExperimentConfig, GeneratorConfig
 from data_generator import generate_instance, save_instance
 from metrics import rpi, schedule_frame
 from tsr_ppo import make_agent
+from utils.io import make_json_serializable, write_json
 from visualize import (
     save_ablation,
     save_algorithm_bars,
@@ -169,8 +170,8 @@ def run(mode: str) -> None:
     save_sensitivity(sens[sens["scenario"] == "到达强度"], "level", "动态到达强度敏感性", "sensitivity_arrival_intensity.png", fig_dir)
 
     summary = {"mode": mode, "seed": seed, "jobs": n_jobs, "episodes": episodes, "training_runtime_sec": elapsed}
-    (tab_dir / "run_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    write_json(summary, tab_dir / "run_summary.json")
+    print(json.dumps(make_json_serializable(summary), ensure_ascii=False, indent=2))
 
 
 def main() -> None:
