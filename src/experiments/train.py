@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 try:
     from tqdm import tqdm
 except ImportError:  # pragma: no cover - 正式环境应通过 requirements.txt 安装 tqdm
@@ -25,7 +26,10 @@ from src.data.dataset import load_dataset
 from src.env.scheduling_env import EnvParams, SchedulingEnv
 from src.utils.io import ensure_dir, write_json
 from src.utils.logger import CsvLogger
+from src.utils.metrics import compute_cmax, load_balance_std, utilization
 from src.utils.seed import set_global_seed
+from src.visualization.plot_eval_diagnostics import generate_eval_diagnostic_figures
+from src.visualization.plot_training import generate_training_figures
 
 
 def latest_checkpoint(checkpoint_dir: Path) -> Path | None:
@@ -61,10 +65,17 @@ def rollout(agent: TSRPPOAgent, instance: dict, seed: int, deterministic: bool =
 
 def evaluate(agent: TSRPPOAgent, instances: list[dict], seed: int) -> dict:
     cmax = []
+    rewards = []
     for i, inst in enumerate(instances):
         _, info = rollout(agent, inst, seed + i, deterministic=True)
         cmax.append(info["cmax"])
-    return {"eval_cmax_mean": float(np.mean(cmax)), "eval_cmax_std": float(np.std(cmax, ddof=0))}
+        rewards.append(info["reward"])
+    return {
+        "eval_cmax_mean": float(np.mean(cmax)),
+        "eval_cmax_std": float(np.std(cmax, ddof=0)),
+        "eval_reward_mean": float(np.mean(rewards)),
+        "eval_reward_std": float(np.std(rewards, ddof=0)),
+    }
 
 
 def parse_args() -> argparse.Namespace:
@@ -82,11 +93,64 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     parser.add_argument("--config", type=Path, default=None)
     parser.add_argument(
+        "--preset",
+        choices=["quick_debug", "smoke_test", "pilot_small", "pilot_medium", "formal_medium", "formal_large"],
+        default=None,
+    )
+    parser.add_argument(
         "--variant",
         choices=["PPO", "PPO+Mask", "PPO+Mask+Split", "PPO+Mask+Split+Rolling", "TSR-PPO"],
         default="TSR-PPO",
     )
     return parser.parse_args()
+
+
+def apply_preset(args: argparse.Namespace, explicit_output_dir: bool) -> None:
+    if args.preset is None:
+        return
+    if args.preset == "quick_debug":
+        args.quick_debug = True
+        args.episodes = 5
+        args.scale = "small"
+        args.eval_interval = 1
+        args.save_interval = 1
+        if not explicit_output_dir:
+            args.output_dir = None
+    elif args.preset == "smoke_test":
+        args.episodes = 20
+        args.scale = "small"
+        args.eval_interval = 5
+        args.save_interval = 5
+        if not explicit_output_dir:
+            args.output_dir = Path("results") / f"smoke_small_20_{args.device}"
+    elif args.preset == "pilot_small":
+        args.episodes = 100
+        args.scale = "small"
+        args.eval_interval = 10
+        args.save_interval = 20
+        if not explicit_output_dir:
+            args.output_dir = Path("results") / f"pilot_small_100_seed{args.seed}"
+    elif args.preset == "pilot_medium":
+        args.episodes = 300
+        args.scale = "medium"
+        args.eval_interval = 20
+        args.save_interval = 50
+        if not explicit_output_dir:
+            args.output_dir = Path("results") / f"pilot_medium_300_seed{args.seed}"
+    elif args.preset == "formal_medium":
+        args.episodes = 1000
+        args.scale = "medium"
+        args.eval_interval = 20
+        args.save_interval = 100
+        if not explicit_output_dir:
+            args.output_dir = Path("results") / f"formal_medium_seed{args.seed}"
+    elif args.preset == "formal_large":
+        args.episodes = 1000
+        args.scale = "large"
+        args.eval_interval = 20
+        args.save_interval = 100
+        if not explicit_output_dir:
+            args.output_dir = Path("results") / f"formal_large_seed{args.seed}"
 
 
 def torch_runtime_info(device: str) -> dict:
@@ -131,6 +195,41 @@ def announce_start(args: argparse.Namespace, output_dir: Path, dataset_dir: Path
     print(f"dataset_dir: {dataset_dir}")
 
 
+def export_validation_diagnostics(agent: TSRPPOAgent, instances: list[dict], output_dir: Path, seed: int) -> tuple[Path, Path]:
+    raw_rows: list[dict] = []
+    summary_rows: list[dict] = []
+    for i, instance in enumerate(instances):
+        _, info = rollout(agent, instance, seed + i, deterministic=True)
+        schedule = info["schedule"]
+        for row in schedule:
+            out = dict(row)
+            out["algorithm"] = "TSR-PPO"
+            raw_rows.append(out)
+        raw_df = pd.DataFrame(schedule)
+        machines = instance["machines"]
+        rank_counts = raw_df["machine_rank"] if "machine_rank" in raw_df else pd.Series(dtype=float)
+        summary_rows.append(
+            {
+                "instance_id": instance["instance_id"],
+                "cmax": compute_cmax(schedule),
+                "reward": info["reward"],
+                "utilization_mean": utilization(schedule, machines),
+                "load_balance_std": load_balance_std(schedule, machines),
+                "avg_machine_mismatch": float(raw_df["machine_mismatch"].mean()) if "machine_mismatch" in raw_df else np.nan,
+                "fastest_machine_ratio": float((rank_counts == 1).mean()) if not rank_counts.empty else np.nan,
+                "second_fastest_ratio": float((rank_counts == 2).mean()) if not rank_counts.empty else np.nan,
+                "others_ratio": float((rank_counts > 2).mean()) if not rank_counts.empty else np.nan,
+            }
+        )
+    raw_path = output_dir / "raw_eval_schedule.csv"
+    summary_path = output_dir / "eval_summary.csv"
+    pd.DataFrame(raw_rows).to_csv(raw_path, index=False, encoding="utf-8")
+    pd.DataFrame(summary_rows).to_csv(summary_path, index=False, encoding="utf-8")
+    print(f"Saved validation schedule: {raw_path}")
+    print(f"Saved validation summary: {summary_path}")
+    return raw_path, summary_path
+
+
 def main() -> None:
     args = parse_args()
     explicit_output_dir = "--output_dir" in sys.argv
@@ -139,6 +238,7 @@ def main() -> None:
         for key, value in cfg.items():
             if hasattr(args, key):
                 setattr(args, key, value)
+    apply_preset(args, explicit_output_dir)
     if args.quick_debug:
         args.episodes = min(args.episodes, 5)
         args.scale = "small"
@@ -185,10 +285,13 @@ def main() -> None:
             "train_cmax",
             "eval_cmax_mean",
             "eval_cmax_std",
+            "eval_reward_mean",
+            "eval_reward_std",
             "last_eval_cmax_mean",
             "last_eval_cmax_std",
             "policy_loss",
             "value_loss",
+            "total_loss",
             "entropy",
             "learning_rate",
         ],
@@ -206,7 +309,7 @@ def main() -> None:
         split_mode = "weighted" if ppo_params.use_split else "single"
         trajectory, train_info = rollout(agent, inst, args.seed + episode, deterministic=False, split_mode=split_mode)
         losses = agent.update(trajectory)
-        eval_info = {"eval_cmax_mean": None, "eval_cmax_std": None}
+        eval_info = {"eval_cmax_mean": None, "eval_cmax_std": None, "eval_reward_mean": None, "eval_reward_std": None}
         if episode % args.eval_interval == 0 or episode == 1:
             eval_info = evaluate(agent, dataset["val_instances"], args.seed + 5000)
             last_eval = {
@@ -238,8 +341,13 @@ def main() -> None:
         if episode % args.save_interval == 0 or episode == args.episodes:
             agent.save_checkpoint(checkpoint_dir / f"checkpoint_ep{episode:04d}.pt", episode=episode, seed=args.seed, extra={"scale": args.scale})
 
+    figures_dir = ensure_dir(output_dir / "figures")
+    generate_training_figures(output_dir / "training_curve.csv", figures_dir, ma_window=20)
+    raw_eval_path, _ = export_validation_diagnostics(agent, dataset["val_instances"], output_dir, args.seed + 7000)
+    generate_eval_diagnostic_figures(raw_eval_path, figures_dir, rolling_delta=float(dataset["val_instances"][0]["rolling_delta"]))
     print("Training finished successfully.")
     print(f"Results saved to: {output_dir}")
+    print(f"Figures saved to: {figures_dir}")
 
 
 if __name__ == "__main__":

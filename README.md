@@ -76,6 +76,25 @@ python -m src.experiments.train --episodes 20 --scale small --seed 42 --device c
 python -m src.experiments.train --episodes 1000 --scale medium --seed 42 --device cuda --output_dir results/formal_medium_seed42
 ```
 
+推荐分阶段训练流程：
+
+```bash
+# 1. 代码链路检查
+python -m src.experiments.train --preset quick_debug --device cuda
+
+# 2. CUDA、日志、checkpoint、自动画图检查
+python -m src.experiments.train --preset smoke_test --device cuda
+
+# 3. 小规模看趋势
+python -m src.experiments.train --preset pilot_small --device cuda
+
+# 4. 中规模初步调参
+python -m src.experiments.train --preset pilot_medium --device cuda
+
+# 5. 正式 medium
+python -m src.experiments.train --preset formal_medium --device cuda
+```
+
 ## 3. 正式代码结构
 
 ```text
@@ -169,9 +188,31 @@ python -m src.experiments.train --episodes 1000 --scale medium --seed 42 --devic
 ```text
 Training finished successfully.
 Results saved to: <output_dir>
+Figures saved to: <output_dir>/figures
 ```
 
 `experiment_config.json` 会记录 `python_version/torch_version/torch_cuda_version/cuda_available/gpu_name/device`。
+
+训练结束后会自动生成基础诊断图到 `<output_dir>/figures/`：
+
+- `training_reward_curve.png`
+- `training_cmax_curve.png`
+- `eval_cmax_curve.png`
+- `loss_curve.png`
+- `entropy_curve.png`
+- `learning_rate_curve.png`（如果 CSV 中存在 learning_rate 字段）
+
+同时会在固定验证集 `val_instances` 上导出：
+
+- `eval_summary.csv`
+- `raw_eval_schedule.csv`
+
+如果验证集 raw schedule 可用，还会自动生成：
+
+- `gantt_eval_instance.png`
+- `machine_rank_distribution.png`
+- `machine_mismatch_distribution.png`
+- `efficiency_load_tradeoff.png`
 
 ## 6. CSV 编码说明
 
@@ -183,7 +224,18 @@ episode,train_reward,train_cmax,eval_cmax_mean,...
 
 Windows CMD 的 `type` 命令对 UTF-8/BOM 的显示并不可靠，建议使用 VS Code、Excel 或 pandas 读取 CSV。当前 `training_curve.csv`、`raw_schedule_results.csv`、`summary_metrics.csv` 均使用统一编码写入。
 
-`training_curve.csv` 每轮记录训练指标；只有实际 eval 的 episode 写 `eval_cmax_mean/eval_cmax_std`，同时新增 `last_eval_cmax_mean/last_eval_cmax_std` 方便进度条和画图平滑显示。
+`training_curve.csv` 每轮记录训练指标；只有实际 eval 的 episode 写 `eval_cmax_mean/eval_cmax_std/eval_reward_mean/eval_reward_std`，同时新增 `last_eval_cmax_mean/last_eval_cmax_std` 方便进度条和画图平滑显示。
+
+注意：`train_cmax` 每轮可能来自不同训练实例，原始曲线会剧烈波动，不能作为唯一有效性判断依据。建议主要观察：
+
+- moving average 后的 `train_reward` 是否改善；
+- 固定验证集 `eval_cmax_mean` 是否下降；
+- `eval_cmax_std` 是否稳定；
+- 与 FIFO/SPT/EAT/GA/PPO 的同实例测试对比；
+- 非等效机器适配损失是否低于基线；
+- 机器选择排名分布是否更合理。
+
+不建议每次修改后都跑 1000 轮，应采用 `quick_debug -> smoke_test -> pilot_small -> pilot_medium -> formal` 的分阶段流程。
 
 ## 7. 评估所有算法
 
@@ -228,8 +280,10 @@ second_fastest_ratio, others_ratio, runtime
 训练曲线：
 
 ```bash
-python -m src.visualization.plot_training --input results/formal_medium_seed42/training_curve.csv --output results/figures/formal_medium
+python -m src.visualization.plot_training --input results/formal_medium_seed42/training_curve.csv --output results/figures/formal_medium --ma_window 20
 ```
+
+该脚本会生成 `training_reward_curve.png`、`training_cmax_curve.png`、`eval_cmax_curve.png`、`loss_curve.png`、`entropy_curve.png`，并在保存每张图时打印 `Saved figure: <path>`。
 
 非等效并行机图：
 
@@ -246,6 +300,18 @@ python -m src.visualization.plot_non_equivalent_machine ^
 ```bash
 python -m src.visualization.plot_gantt --input results/eval_medium/raw_schedule_results.csv --algorithm TSR-PPO --rolling_delta 120 --output results/figures/gantt
 ```
+
+评估汇总图：
+
+```bash
+python -m src.visualization.plot_evaluation --summary results/eval_medium/summary_metrics.csv --output results/figures/eval_medium
+```
+
+正式论文图生成建议：
+
+- 每次训练后自动生成：`training_reward_curve.png`、`training_cmax_curve.png`、`eval_cmax_curve.png`、`loss_curve.png`、`entropy_curve.png`
+- 评估后生成：`algorithm_cmax_comparison.png`、`gantt_tsr_ppo.png`、`machine_rank_distribution.png`、`machine_mismatch_comparison.png`、`efficiency_load_tradeoff.png`
+- 消融和敏感性实验完成后再生成：`ablation_cmax.png`、`sensitivity_task_scale.png`、`sensitivity_heterogeneity.png`、`sensitivity_arrival_intensity.png`、`sensitivity_rolling_step.png`、`sensitivity_split_limit.png`、`utilization_balance.png`
 
 ## 9. 敏感性与消融实验计划
 

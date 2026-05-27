@@ -139,6 +139,7 @@ class PPOAgent:
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.params.max_grad_norm)
             self.optimizer.step()
             last = {
+                "total_loss": float(loss.detach().cpu()),
                 "policy_loss": float(policy_loss.detach().cpu()),
                 "value_loss": float(value_loss.detach().cpu()),
                 "entropy": float(entropy.mean().detach().cpu()),
