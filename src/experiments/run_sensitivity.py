@@ -37,7 +37,7 @@ def main() -> None:
         if args.experiment == "rolling_delta":
             kwargs["rolling_delta"] = float(level)
         generate_dataset(dataset_dir, scale=scale, seed=args.seed, **kwargs)
-        commands.append(f"python -m src.experiments.train --episodes {args.episodes} --scale {scale} --seed {args.seed} --dataset_dir {dataset_dir} --output_dir {output_dir / ('train_' + str(level))}")
+        commands.append(f"python -m src.experiments.train --episodes {args.episodes} --scale {scale} --seed {args.seed} --device cuda --dataset_dir {dataset_dir} --output_dir {output_dir / ('train_' + str(level))}")
     write_json({"experiment": args.experiment, "levels": levels, "commands": commands}, output_dir / "sensitivity_plan.json")
     print(f"sensitivity plan saved to {output_dir / 'sensitivity_plan.json'}")
 

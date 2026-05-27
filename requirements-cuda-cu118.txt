@@ -1,0 +1,6 @@
+# CUDA 11.8 训练电脑 PyTorch 依赖说明
+# 推荐安装命令：
+# python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+torch
+torchvision
+torchaudio

@@ -18,7 +18,7 @@ def main() -> None:
     for scale in ["small", "medium", "large"]:
         for s in range(args.num_seeds):
             seed = args.seed + s
-            commands.append(f"python -m src.experiments.train --episodes {args.episodes} --scale {scale} --seed {seed} --output_dir results/formal_{scale}_seed{seed}")
+            commands.append(f"python -m src.experiments.train --episodes {args.episodes} --scale {scale} --seed {seed} --device cuda --output_dir results/formal_{scale}_seed{seed}")
     write_json({"episodes": args.episodes, "commands": commands}, output_dir / "formal_experiment_plan.json")
     print(f"formal plan saved to {output_dir / 'formal_experiment_plan.json'}")
 

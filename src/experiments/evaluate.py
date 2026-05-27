@@ -72,9 +72,9 @@ def main() -> None:
         for inst_idx, instance in enumerate(test_instances):
             raw_rows.extend(run_agent(instance, agent, "PPO", args.seed + 1000 + inst_idx))
     raw = pd.DataFrame(raw_rows)
-    raw.to_csv(output_dir / "raw_schedule_results.csv", index=False, encoding="utf-8-sig")
+    raw.to_csv(output_dir / "raw_schedule_results.csv", index=False, encoding="utf-8")
     summary = summarize_raw_results(raw, test_instances, args.scale, args.seed)
-    summary.to_csv(output_dir / "summary_metrics.csv", index=False, encoding="utf-8-sig")
+    summary.to_csv(output_dir / "summary_metrics.csv", index=False, encoding="utf-8")
     write_json(
         {
             "scale": args.scale,

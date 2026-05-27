@@ -65,7 +65,9 @@ class PPOAgent:
         if torch is None:
             raise RuntimeError("PyTorch is required for formal PPO training. Please install requirements.txt.")
         self.params = params
-        self.device = torch.device(device if device == "cuda" and torch.cuda.is_available() else "cpu")
+        if device == "cuda" and not torch.cuda.is_available():
+            raise RuntimeError("args.device=cuda, but torch.cuda.is_available() is False. Please install a CUDA-enabled PyTorch build or use --device cpu.")
+        self.device = torch.device("cuda" if device == "cuda" else "cpu")
         torch.manual_seed(seed)
         self.model = ActorCritic(state_dim, action_feature_dim).to(self.device)
         self.optimizer = optim.Adam(

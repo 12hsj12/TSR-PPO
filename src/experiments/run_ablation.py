@@ -16,7 +16,7 @@ def main() -> None:
     output_dir = ensure_dir(args.output_dir)
     variants = ["PPO", "PPO+Mask", "PPO+Mask+Split", "PPO+Mask+Split+Rolling", "TSR-PPO full"]
     commands = [
-        f"python -m src.experiments.train --episodes {args.episodes} --scale {args.scale} --seed {args.seed} --variant \"{v.replace(' full', '')}\" --output_dir {output_dir / v.replace(' ', '_').replace('+', '_')}"
+        f"python -m src.experiments.train --episodes {args.episodes} --scale {args.scale} --seed {args.seed} --device cuda --variant \"{v.replace(' full', '')}\" --output_dir {output_dir / v.replace(' ', '_').replace('+', '_')}"
         for v in variants
     ]
     write_json({"variants": variants, "commands": commands}, output_dir / "ablation_plan.json")

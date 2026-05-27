@@ -146,23 +146,23 @@ def run(mode: str) -> None:
     elapsed = time.perf_counter() - started
 
     history = pd.DataFrame(agents["TSR-PPO"].history)
-    history.to_csv(tab_dir / "convergence_history.csv", index=False, encoding="utf-8-sig")
+    history.to_csv(tab_dir / "convergence_history.csv", index=False, encoding="utf-8")
     save_convergence(history, fig_dir)
     agents["TSR-PPO"].model.save(model_dir / "tsr_ppo_linear_actor_critic.npz")
 
     perf, schedules = performance_table(base_instance, agents, seed)
-    perf.to_csv(tab_dir / "performance_comparison.csv", index=False, encoding="utf-8-sig")
+    perf.to_csv(tab_dir / "performance_comparison.csv", index=False, encoding="utf-8")
     save_algorithm_bars(perf, fig_dir)
     save_util_balance(perf, fig_dir)
-    schedule_frame(schedules["TSR-PPO"]).to_csv(tab_dir / "tsr_ppo_schedule.csv", index=False, encoding="utf-8-sig")
+    schedule_frame(schedules["TSR-PPO"]).to_csv(tab_dir / "tsr_ppo_schedule.csv", index=False, encoding="utf-8")
     save_gantt(schedules["TSR-PPO"], fig_dir)
 
     abl, _ = ablation_table(base_instance, agents)
-    abl.to_csv(tab_dir / "ablation_results.csv", index=False, encoding="utf-8-sig")
+    abl.to_csv(tab_dir / "ablation_results.csv", index=False, encoding="utf-8")
     save_ablation(abl, fig_dir)
 
     sens = sensitivity(seed, agents, quick)
-    sens.to_csv(tab_dir / "sensitivity_results.csv", index=False, encoding="utf-8-sig")
+    sens.to_csv(tab_dir / "sensitivity_results.csv", index=False, encoding="utf-8")
     save_sensitivity(sens[sens["scenario"] == "规模"], "level", "任务规模敏感性", "sensitivity_task_scale.png", fig_dir)
     save_sensitivity(sens[sens["scenario"] == "拆分上限"], "level", "拆分上限敏感性", "sensitivity_split_limit.png", fig_dir)
     save_sensitivity(sens[sens["scenario"] == "异构程度"], "level", "产线异构程度敏感性", "sensitivity_heterogeneity.png", fig_dir)

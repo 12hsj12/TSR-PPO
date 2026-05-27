@@ -6,5 +6,5 @@
   "eval_interval": 20,
   "save_interval": 100,
   "output_dir": "results/formal_medium_seed42",
-  "device": "cpu"
+  "device": "cuda"
 }
